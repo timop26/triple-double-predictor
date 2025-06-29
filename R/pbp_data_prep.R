@@ -12,12 +12,12 @@ create_player_dim <- function(seasons=most_recent_nba_season()) {
 
 find_starters <- function(season=most_recent_nba_season(), home_away="home") {
   hoopR::load_nba_player_box(season=season) %>%
-  filter(starter, home_away == "home") %>%
-  group_by(game_id) %>%
-  mutate(starters=paste(athlete_id, collapse=", ")) %>%
-  select(game_id, starters) %>%
-  distinct() %>%
-  return()
+    filter(starter, home_away == "home") %>%
+    group_by(game_id) %>%
+    mutate(starters=paste(athlete_id, collapse=", ")) %>%
+    select(game_id, starters) %>%
+    distinct() %>%
+    return()
 }
 
 prep_pbp_for_cum_stats1 <- function(season=most_recent_nba_season()) {
@@ -153,19 +153,8 @@ pbp <- prep_pbp_for_cum_stats2()
 
 start <- Sys.time()
 play_stats <- calc_play_stats()
-end <- Sys.time()S
+end <- Sys.time()
 
-play_stats <- bind_rows(
-  mutate(rename(pbp, player=athlete_name_1), player_id=1) %>%
-    select(-athlete_name_2) %>%
-    pmap_dfr(player_stats),
-  mutate(rename(pbp, player=athlete_name_2), player_id=2) %>%
-    filter(!is.na(player)) %>%
-    select(-athlete_name_1) %>%
-    pmap_dfr(player_stats)
-) %>%
-  arrange(game_id, game_play_number)
-  
 
 box_calcs <- play_stats %>%
   group_by(game_id, player_name) %>%
