@@ -1,0 +1,26 @@
+{
+    "id": "504B3139",
+    "path": "~/triple-double-predictor/R/pbp_data_prep.R",
+    "project_path": "pbp_data_prep.R",
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1751164878719.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "153,0",
+        "scrollLine": "151"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1751164725,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1751164897413,
+    "read_only": false,
+    "read_only_alternatives": []
+}
