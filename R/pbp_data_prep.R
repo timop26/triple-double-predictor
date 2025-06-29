@@ -145,11 +145,9 @@ calc_play_stats <- function(season=most_recent_nba_season()) {
     return()
 }
 
-player_dim <- create_player_dim(2021:2025)
-
-home_starters <- find_starters(home_away="home")
-
-pbp <- prep_pbp_for_cum_stats2()
+#player_dim <- create_player_dim(2021:2025)
+#home_starters <- find_starters(home_away="home")
+#pbp <- prep_pbp_for_cum_stats2()
 
 start <- Sys.time()
 play_stats <- calc_play_stats()
