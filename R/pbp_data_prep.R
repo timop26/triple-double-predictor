@@ -5,8 +5,8 @@ library(tidyverse)
 #pbp <- hoopR::load_nba_pbp()
 #box_scores <- hoopR::load_nba_player_box()
 
-create_player_dim <- function(seasons=most_recent_nba_season()) {
-  box_scores <- hoopR::load_nba_player_box(seasons)
+create_player_dim <- function(season=most_recent_nba_season()) {
+  box_scores <- hoopR::load_nba_player_box(season)
   return(unique(box_scores[, c("athlete_id", "athlete_display_name", "season")]))
 }
 
@@ -16,8 +16,7 @@ find_starters <- function(season=most_recent_nba_season(), home_away="home") {
     group_by(game_id) %>%
     mutate(starters=paste(athlete_id, collapse=", ")) %>%
     select(game_id, starters) %>%
-    distinct() %>%
-    return()
+    distinct()
 }
 
 prep_pbp_for_cum_stats1 <- function(season=most_recent_nba_season()) {
@@ -36,8 +35,7 @@ prep_pbp_for_cum_stats1 <- function(season=most_recent_nba_season()) {
     mutate(
       home_starters=ifelse(game_play_number > 2, NA, home_starters), 
       away_starters=ifelse(game_play_number > 2, NA, away_starters)
-    ) %>%
-    return()
+    )
 }
 
 prep_pbp_for_cum_stats2 <- function(season=most_recent_nba_season()) {
@@ -92,7 +90,12 @@ player_stats <- function(
   if (player_id == 1) {
     # If it's a shooting play, need to determine free throw, 2 pointer, or 3 pointer
     if (shooting_play) {
-      type <- case_when(str_detect(text, "free") ~ "ft", str_detect(text, "three") ~ "three", TRUE ~ "two")
+      distance <- as.numeric(str_extract(text, "\\d+"))
+      type <- case_when(
+        str_detect(text, "free") ~ "ft", 
+        str_detect(text, "three|(?=.*misses)(?=.*running pullup jump shot)") | (!is.na(distance) & distance >= 23) ~ "three", 
+        TRUE ~ "two"
+      )
       # Increment attempts
       box[, paste0(type, "a")] <- 1
       if (scoring_play) {
@@ -141,8 +144,74 @@ calc_play_stats <- function(season=most_recent_nba_season()) {
       select(-athlete_name_1) %>%
       pmap_dfr(player_stats)
   ) %>%
-    arrange(game_id, game_play_number) %>%
-    return()
+    arrange(game_id, game_play_number)
+}
+
+calc_box_score <- function(play_stats) {
+  play_stats %>%
+    group_by(game_id, player_name) %>%
+    summarize_all(sum) %>%
+    mutate(pts=twom * 2 + threem * 3 + ftm, treb=oreb + dreb) %>%
+    select(
+      game_id,
+      player_name,
+      pts,
+      threea,
+      threem,
+      fta,
+      ftm,
+      oreb,
+      dreb,
+      ast,
+      stl,
+      blk,
+      to,
+      fls,
+      tech,
+      flagrant
+    )
+}
+
+get_official_box_score <-function(season=most_recent_nba_season()) {
+  hoopR::load_nba_player_box(season=season) %>%
+    filter(!is.na(minutes)) %>%
+    mutate(
+      twoa=field_goals_attempted - three_point_field_goals_attempted,
+      twom=field_goals_made - three_point_field_goals_made
+    ) %>%
+    rename(
+      player_name=athlete_display_name,
+      pts=points,
+      threea=three_point_field_goals_attempted,
+      threem=three_point_field_goals_made,
+      fta=free_throws_attempted,
+      ftm=free_throws_made,
+      oreb=offensive_rebounds,
+      dreb=defensive_rebounds,
+      ast=assists,
+      stl=steals,
+      blk=blocks,
+      to=turnovers,
+      fls=fouls
+    ) %>%
+    select(
+      game_id,
+      player_name,
+      pts,
+      threea,
+      threem,
+      fta,
+      ftm,
+      oreb,
+      dreb,
+      ast,
+      stl,
+      blk,
+      to,
+      fls,
+      ejected
+    ) %>%
+    arrange(game_id, player_name)
 }
 
 #player_dim <- create_player_dim(2021:2025)
@@ -153,72 +222,34 @@ start <- Sys.time()
 play_stats <- calc_play_stats()
 end <- Sys.time()
 
+box_calcs <- calc_box_score(play_stats)
 
-box_calcs <- play_stats %>%
-  group_by(game_id, player_name) %>%
-  summarize_all(sum) %>%
-  mutate(pts=twom * 2 + threem * 3 + ftm, treb=oreb + dreb) %>%
-  select(
-    game_id,
-    player_name,
-    pts,
-    threea,
-    threem,
-    fta,
-    ftm,
-    oreb,
-    dreb,
-    ast,
-    stl,
-    blk,
-    to,
-    fls,
-    tech,
-    flagrant
-  )
+box_truth <- get_official_box_score()
 
-box_truth <- box_scores %>%
-  filter(game_id <= 401705000, !is.na(minutes)) %>%
-  mutate(
-    twoa=field_goals_attempted - three_point_field_goals_attempted,
-    twom=field_goals_made - three_point_field_goals_made
-  ) %>%
-  rename(
-    game_id=game_id,
-    player_name=athlete_display_name,
-    pts=points,
-    threea=three_point_field_goals_attempted,
-    threem=three_point_field_goals_made,
-    fta=free_throws_attempted,
-    ftm=free_throws_made,
-    oreb=offensive_rebounds,
-    dreb=defensive_rebounds,
-    ast=assists,
-    stl=steals,
-    blk=blocks,
-    to=turnovers,
-    fls=fouls
-  ) %>%
-  select(
-    game_id,
-    player_name,
-    pts,
-    threea,
-    threem,
-    fta,
-    ftm,
-    oreb,
-    dreb,
-    ast,
-    stl,
-    blk,
-    to,
-    fls,
-    ejected
-  ) %>%
-  arrange(game_id, player_name)
+comp_df <- full_join(as.data.frame(box_truth), as.data.frame(box_calcs), by=c("game_id", "player_name"), suffix=c("_truth", "_calc"))
 
+comp_stats <- colnames(box_truth)[3:14]
+sapply(comp_stats, function(x) {
+  mean(comp_df[, paste0(x, "_truth")] - comp_df[, paste0(x, "_calc")], na.rm=TRUE)
+})
 
+sapply(comp_stats, function(x) {
+  mean(comp_df[, paste0(x, "_truth")] == comp_df[, paste0(x, "_calc")], na.rm=TRUE)
+})
+# check if running jump shot are basically always threes
+
+comp_df %>%
+  group_by(game_id) %>%
+  summarize(match_rate=mean(threea_truth == threea_calc, na.rm=TRUE)) %>%
+  arrange(match_rate) %>%
+  head(20) %>%
+  View()
+
+pbp <-  prep_pbp_for_cum_stats2()
+View(filter(comp_df, game_id == 401704954))
+View(filter(pbp, game_id == 401704954, shooting_play, str_detect(text, "Fred VanVleet")))
+View(filter(play_stats, game_id == 401704954, player_name == "Fred VanVleet"))
+"running pullup jump shot"
 # minutes, field goals made, field goals attempted (do these after the fact), three pointers made, 
 ## three pointers attempted, free throws made, free throws attempted, total points (do this after 
 ## the fact), total rebounds (do this after the fact), assists, steals, fouls, technical fouls
