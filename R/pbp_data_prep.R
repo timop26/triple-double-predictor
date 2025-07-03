@@ -7,6 +7,10 @@ library(tidyverse)
 
 create_player_dim <- function(season=most_recent_nba_season()) {
   box_scores <- hoopR::load_nba_player_box(season)
+  box_scores$athlete_display_name[box_scores$athlete_display_name == "Brandon Boston"] <- "Brandon Boston|Brandon Boston Jr."
+  box_scores$athlete_display_name[box_scores$athlete_display_name == "Jimmy Butler III"] <- "Jimmy Butler III|Jimmy Butler"
+  box_scores$athlete_display_name[box_scores$athlete_display_name == "Bub Carrington"] <- "Bub Carrington|Carlton Carrington"
+  box_scores$athlete_display_name[box_scores$athlete_display_name == "Alex Sarr"] <- "Alex Sarr|Alexandre Sarr"
   return(unique(box_scores[, c("athlete_id", "athlete_display_name", "season")]))
 }
 
@@ -93,7 +97,7 @@ player_stats <- function(
       distance <- as.numeric(str_extract(text, "\\d+"))
       type <- case_when(
         str_detect(text, "free") ~ "ft", 
-        str_detect(text, "three|(?=.*misses)(?=.*running pullup jump shot)") | (!is.na(distance) & distance >= 23) ~ "three", 
+        str_detect(text, "three|(?=.*misses)(?=.*running pullup jump shot)") | (!is.na(distance) & distance >= 24) ~ "three", 
         TRUE ~ "two"
       )
       # Increment attempts
@@ -214,6 +218,21 @@ get_official_box_score <-function(season=most_recent_nba_season()) {
     arrange(game_id, player_name)
 }
 
+create_comp_df <- function(box_calc, box_truth) {
+  comp_df <- full_join(
+    as.data.frame(box_truth), 
+    as.data.frame(box_calcs), 
+    by=c("game_id", "player_name"), 
+    suffix=c("_truth", "_calc")
+  )
+}
+
+val_calc_box <- function(comp_df, cols) {
+  sapply(cols, function(x) {
+    mean(comp_df[, paste0(x, "_truth")] == comp_df[, paste0(x, "_calc")], na.rm=TRUE)
+  }) 
+}
+
 #player_dim <- create_player_dim(2021:2025)
 #home_starters <- find_starters(home_away="home")
 #pbp <- prep_pbp_for_cum_stats2()
@@ -226,30 +245,27 @@ box_calcs <- calc_box_score(play_stats)
 
 box_truth <- get_official_box_score()
 
-comp_df <- full_join(as.data.frame(box_truth), as.data.frame(box_calcs), by=c("game_id", "player_name"), suffix=c("_truth", "_calc"))
+comp_df <- create_comp_df(box_truth, box_calcs)
 
-comp_stats <- colnames(box_truth)[3:14]
 sapply(comp_stats, function(x) {
   mean(comp_df[, paste0(x, "_truth")] - comp_df[, paste0(x, "_calc")], na.rm=TRUE)
 })
 
-sapply(comp_stats, function(x) {
-  mean(comp_df[, paste0(x, "_truth")] == comp_df[, paste0(x, "_calc")], na.rm=TRUE)
-})
-# check if running jump shot are basically always threes
+val_calc_box(comp_df, colnames(box_truth)[3:14])
+
 
 comp_df %>%
-  group_by(game_id) %>%
-  summarize(match_rate=mean(threea_truth == threea_calc, na.rm=TRUE)) %>%
+  group_by(player_name) %>%
+  summarize(match_rate=mean(ast_truth == ast_calc, na.rm=TRUE)) %>%
   arrange(match_rate) %>%
-  head(20) %>%
+  head(40) %>%
   View()
 
 pbp <-  prep_pbp_for_cum_stats2()
-View(filter(comp_df, game_id == 401704954))
-View(filter(pbp, game_id == 401704954, shooting_play, str_detect(text, "Fred VanVleet")))
-View(filter(play_stats, game_id == 401704954, player_name == "Fred VanVleet"))
-"running pullup jump shot"
+View(filter(comp_df, game_id == 401703412))
+View(filter(pbp, scoring_play, athlete_name_2 == "Keyonte George", str_detect(text, "George")))
+View(filter(play_stats, game_id == 401703412, player_name == "Keon Johnson"))
+
 # minutes, field goals made, field goals attempted (do these after the fact), three pointers made, 
 ## three pointers attempted, free throws made, free throws attempted, total points (do this after 
 ## the fact), total rebounds (do this after the fact), assists, steals, fouls, technical fouls
