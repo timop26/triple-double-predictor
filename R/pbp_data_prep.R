@@ -2,9 +2,6 @@ library(hoopR)
 library(stringr)
 library(tidyverse)
 
-#pbp <- hoopR::load_nba_pbp()
-#box_scores <- hoopR::load_nba_player_box()
-
 create_player_dim <- function(season=most_recent_nba_season()) {
   box_scores <- hoopR::load_nba_player_box(season)
   box_scores$athlete_display_name[box_scores$athlete_display_name == "Brandon Boston"] <- "Brandon Boston|Brandon Boston Jr."
@@ -12,39 +9,6 @@ create_player_dim <- function(season=most_recent_nba_season()) {
   box_scores$athlete_display_name[box_scores$athlete_display_name == "Bub Carrington"] <- "Bub Carrington|Carlton Carrington"
   box_scores$athlete_display_name[box_scores$athlete_display_name == "Alex Sarr"] <- "Alex Sarr|Alexandre Sarr"
   return(unique(box_scores[, c("athlete_id", "athlete_display_name", "season")]))
-}
-
-calc_lineups <- function(season=most_recent_nba_season()) {
-  pbp <- hoopR::load_nba_pbp(season=season) %>%
-    mutate(seconds_elapsed=start_game_seconds_remaining - end_game_seconds_remaining) %>%
-    select(game_id, game_play_number, start_game_seconds_remaining, seconds_elapsed, type_text, athlete_id_1, athlete_id_2)
-  lineups <- hoopR::load_nba_player_box(season=season) %>%
-    filter(starter) %>%
-    group_by(game_id) %>%
-    mutate(lineups=list(athlete_id)) %>%
-    select(game_id, lineups) %>%
-    distinct()
-  pbp_lineups <- left_join(pbp, lineups, by="game_id")
-  for (i in 1:nrow(pbp_lineups)) {
-    if (pbp_lineups$game_play_number[i] == 1) {
-      next
-    } else if (pbp_lineups$type_text[i] != "Substitution") {
-      pbp_lineups$lineups[[i]] <- pbp_lineups$lineups[[i - 1]]
-    } else {
-      prior_lineup <- pbp_lineups$lineups[[i - 1]]
-      updated_lineup <- replace(prior_lineup, prior_lineup == pbp_lineups$athlete_id_2[i], pbp_lineups$athlete_id_1[i])
-      pbp_lineups$lineups[[i]] <- updated_lineup
-    }
-  }
-  pbp_lineups <- pbp_lineups %>%
-  mutate(
-    seconds_elapsed=ifelse(
-      game_play_number != 1, 
-      seconds_elapsed, 
-      start_game_seconds_remaining - lead(start_game_seconds_remaining)
-    )
-  )
-  return(pbp_lineups)
 }
 
 # Function to update the lineup after each play
@@ -56,17 +20,17 @@ update_lineup <- function(current_lineup, play) {
   }
 }
 
-calc_lineups <- function(season = most_recent_nba_season()) {
+calc_lineups <- function(season=most_recent_nba_season()) {
   # Get play by play data
-  pbp <- hoopR::load_nba_pbp(season = season) %>%
-    mutate(seconds_elapsed = start_game_seconds_remaining - end_game_seconds_remaining) %>%
+  pbp <- hoopR::load_nba_pbp(season=season) %>%
+    mutate(seconds_elapsed=start_game_seconds_remaining - end_game_seconds_remaining) %>%
     select(game_id, game_play_number, start_game_seconds_remaining, seconds_elapsed, type_text, athlete_id_1, athlete_id_2)
   
   # Get initial lineups
   lineups <- hoopR::load_nba_player_box(season=season) %>%
     filter(starter) %>%
     group_by(game_id) %>%
-    summarise(lineup = list(athlete_id), .groups="drop")
+    summarise(lineup=list(athlete_id), .groups="drop")
   
   pbp <- left_join(pbp, lineups, by="game_id") %>%
     arrange(game_id, game_play_number)
@@ -77,8 +41,9 @@ calc_lineups <- function(season = most_recent_nba_season()) {
     mutate(lineup=accumulate(
       .x=row_number(),
       .init=lineup[[1]],
-      .f=function(lineup_prev, idx) update_lineup(lineup_prev, slice(cur_data(), idx))
-    )[-1]) %>%
+      .f=function(lineup_prev, idx) update_lineup(lineup_prev, slice(pick(everything()), idx))
+      )[-1]
+    ) %>%
     ungroup()
   
   # Fix seconds_elapsed for first play
@@ -96,21 +61,32 @@ calc_lineups <- function(season = most_recent_nba_season()) {
   return(pbp)
 }
 
+# Calculates the number of seconds each player played based on lineup data
 calc_seconds_played <- function(lineups=NULL, season=most_recent_nba_season()) {
+  # Load lineups if not provided
   if (is.null(lineups)) {
     lineups <- calc_lineups(season=season)
   }
+  
+  # Unnest and reshape lineup data to get player-level seconds played
   seconds_played <- lineups %>%
-    select(game_id, game_play_number, start_game_seconds_remaining, seconds_elapsed, lineups) %>%
-    unnest_longer(lineups) %>%
-    rename(player_id=lineups, seconds=seconds_elapsed)
+    select(game_id, game_play_number, start_game_seconds_remaining, seconds_elapsed, lineup) %>%
+    unnest_longer(lineup) %>%
+    rename(player_id=lineup, seconds=seconds_elapsed)
+  
+  # Remove duplicate rows for the same player in a lineup segment
   dup_player_segment <- duplicated(seconds_played)
   print(paste("Dropping", sum(dup_player_segment), "duplicate players in a given lineup"))
+  
   return(seconds_played[!dup_player_segment, ])
 }
 
+# Adds player names to play-by-play data using player dimension table
 add_player_names <- function(season=most_recent_nba_season()) {
+  # Get mapping of athlete ID to name
   player_dim <- select(create_player_dim(season=season), athlete_id, athlete_display_name)
+  
+  # Load play-by-play and join with player names involved in the play
   pbp <- hoopR::load_nba_pbp(season=season) %>%
     left_join(player_dim, by=join_by(athlete_id_1 == athlete_id)) %>%
     rename(athlete_name_1=athlete_display_name) %>%
@@ -118,12 +94,16 @@ add_player_names <- function(season=most_recent_nba_season()) {
     rename(athlete_name_2=athlete_display_name) %>%
     left_join(player_dim, by=join_by(athlete_id_3 == athlete_id)) %>%
     rename(athlete_name_3=athlete_display_name)
+  
   return(pbp)
 }
 
+# Prepares a simplified play-by-play table for calculating cumulative stats
 prep_pbp_for_cum_stats <- function(season=most_recent_nba_season()) {
   pbp <- add_player_names(season=season) %>%
+    # Keep only plays with one or two players involved
     filter(is.na(athlete_name_3), !is.na(athlete_name_1)) %>%
+    # Select only the relevant columns for stat calculations
     select(
       game_id, 
       game_play_number,
@@ -137,6 +117,7 @@ prep_pbp_for_cum_stats <- function(season=most_recent_nba_season()) {
       shooting_play, 
       scoring_play
     )
+  
   return(pbp)
 }
 
@@ -222,7 +203,10 @@ player_stats <- function(
 }
 
 calc_play_stats <- function(season=most_recent_nba_season()) {
+  # Prepare play-by-play data for the given season
   pbp <- prep_pbp_for_cum_stats(season=season)
+  
+  # Extract stats for player 1 and player 2 in each play and combine them
   play_stats <- bind_rows(
     mutate(rename(pbp, player=athlete_name_1, player_id=athlete_id_1), player_num=1) %>%
       select(-c(athlete_id_2, athlete_name_2)) %>%
@@ -236,40 +220,104 @@ calc_play_stats <- function(season=most_recent_nba_season()) {
   return(play_stats)
 }
 
+# Add time played (in seconds) to play-level stats and fill missing values with 0
 play_stats_add_time_played <- function(play_stats, seconds_played) {
+  # List of stat columns that should default to 0 if missing
   replace_zeroes <- c("twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", "stl", "blk", "to", "fls", "tech", "flagrant", "seconds")
+  
+  # Join seconds played data and replace missing stat values with 0
   play_stats <- seconds_played %>%
     left_join(
       select(play_stats, -start_game_seconds_remaining, -player_name), 
-      join_by(game_id == game_id, game_play_number == game_play_number, player_id == player_id)
+      join_by(game_id==game_id, game_play_number==game_play_number, player_id==player_id)
     ) %>%
     mutate(across(all_of(replace_zeroes), ~ replace_na(., 0)))
   return(play_stats)
 }
 
+# Compute box score (cumulative) stats for each player per game
 current_box_score <- function(play_stats) {
   stats <- c("seconds", "twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", "stl", "blk", "to", "fls", "tech", "flagrant")
+  
   box_score <- play_stats %>%
     group_by(game_id, player_id) %>%
     arrange(game_play_number, .by_group=TRUE) %>%
-    mutate(across(all_of(stats), cumsum)) %>%
+    # Compute running totals for stats
+    mutate(across(all_of(stats), cumsum)) %>% 
     mutate(
-      pts=twom * 2 + threem * 3 + ftm, 
-      treb=oreb + dreb, 
+      pts=twom*2 + threem*3 + ftm,
+      treb=oreb + dreb,
       minutes=seconds / 60,
-      ejected=case_when(fls > 5 | tech > 1 | flagrant > 1 ~ TRUE, TRUE ~ FALSE)
+      ejected=case_when(
+        fls > 5 | tech > 1 | flagrant > 1 ~ TRUE,
+        TRUE ~ FALSE
+      )
     ) %>%
+    # Double-double and triple-double logic
     mutate(
-      dbl_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 2) * 1,
-      tri_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 3) * 1,
+      dbl_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 2)*1,
+      tri_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 3)*1 
     )
   return(box_score)
 }
 
+# Add time played (in seconds) to play-level stats and fill missing stat values with 0
+play_stats_add_time_played <- function(play_stats, seconds_played) {
+  # List of stat columns that should default to 0 if missing
+  replace_zeroes <- c("twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", 
+                      "stl", "blk", "to", "fls", "tech", "flagrant", "seconds")
+  
+  # Join seconds played data with play stats and replace NA values in stat columns with 0
+  play_stats <- seconds_played %>%
+    left_join(
+      select(play_stats, -start_game_seconds_remaining, -player_name), 
+      join_by(game_id==game_id, game_play_number==game_play_number, player_id==player_id)
+    ) %>%
+    mutate(across(all_of(replace_zeroes), ~ replace_na(., 0)))
+  
+  return(play_stats)
+}
+
+# Calculate cumulative box score stats for each player in each game
+current_box_score <- function(play_stats) {
+  # Stat columns to accumulate
+  stats <- c("seconds", "twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", 
+             "stl", "blk", "to", "fls", "tech", "flagrant")
+  
+  box_score <- play_stats %>%
+    group_by(game_id, player_id) %>%
+    arrange(game_play_number, .by_group=TRUE) %>%
+    # Compute cumulative stats
+    mutate(across(all_of(stats), cumsum)) %>%
+    mutate(
+      pts=twom*2 + threem*3 + ftm,
+      treb=oreb + dreb,
+      minutes=seconds / 60,
+      ejected=case_when(
+        fls > 5 | tech > 1 | flagrant > 1 ~ TRUE,
+        TRUE ~ FALSE
+      )
+    ) %>%
+    # Double-double and triple-double logic
+    mutate(
+      dbl_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 2)*1,
+      tri_dbl=(rowSums(across(all_of(c("pts", "ast", "treb", "stl", "blk")), ~ .x >= 10)) >= 3)*1,
+    )
+  
+  return(box_score)
+}
+
+# Fill in missing play rows for players and forward-fill cumulative stats
 fill_missing_plays <- function(play_stats, season=most_recent_mbb_season()) {
+  # Load full list of plays with game and time context
   pbp <- hoopR::load_nba_pbp(season=season) %>%
     select(game_id, game_play_number, start_game_seconds_remaining)
-  stats <- c("seconds", "twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", "stl", "blk", "to", "fls", "tech", "flagrant", "pts", "treb", "minutes", "ejected", "dbl_dbl", "tri_dbl")
+  
+  # Columns to fill down across missing plays
+  stats <- c("seconds", "twoa", "twom", "threea", "threem", "fta", "ftm", "oreb", "dreb", "ast", "stl", 
+             "blk", "to", "fls", "tech", "flagrant", "pts", "treb", "minutes", "ejected", "dbl_dbl", "tri_dbl")
+  
+  # Fill in plays each player was out of the game
   play_stats <- play_stats %>%
     select(game_id, player_id) %>%
     distinct() %>%
@@ -277,13 +325,14 @@ fill_missing_plays <- function(play_stats, season=most_recent_mbb_season()) {
     left_join(play_stats, by=c("game_id", "game_play_number", "player_id", "start_game_seconds_remaining")) %>%
     group_by(game_id, player_id) %>%
     arrange(game_play_number) %>%
-    fill(all_of(stats), .direction = "down") %>%
+    fill(all_of(stats), .direction="down") %>%
     mutate(across(all_of(stats), ~replace_na(., 0))) %>%
     ungroup() %>%
     arrange(game_id, player_id, game_play_number)
   return(play_stats)
 }
 
+# Return the final box score (last play per player per game)
 final_box_score <- function(play_stats) {
   box_score <- play_stats %>%
     group_by(game_id, player_id) %>%
@@ -292,10 +341,11 @@ final_box_score <- function(play_stats) {
   return(box_score)
 }
 
+# Add double and triple double target flags to play-level stats
 add_targets <- function(play_stats, box_calcs) {
   targets <- box_calcs %>%
     rename(double_double=dbl_dbl, triple_double=tri_dbl) %>%
-    select(game_id, player_id, dbl_dbl, tri_dbl)
+    select(game_id, player_id, double_double, triple_double)
   play_stats <- play_stats %>%
     left_join(targets, by=c("game_id", "player_id"))
   return(play_stats)
@@ -350,16 +400,18 @@ get_official_box_score <-function(season=most_recent_nba_season()) {
   return(box_score)
 }
 
+# Join calculated and ground truth box scores for comparison
 create_comp_df <- function(box_calc, box_truth) {
   return(full_join(box_calc, box_truth, by=c("game_id", "player_id"), suffix=c("_calc", "_truth")))
 }
 
+# Validate calculated box scores against truth using specified metric
 val_calc_box <- function(comp_df, cols, type="exact", within=1) {
-  if (type == "exact") {
+  if (type=="exact") {
     comp <- sapply(cols, function(x) {
       mean(comp_df[, paste0(x, "_truth")] == comp_df[, paste0(x, "_calc")], na.rm=TRUE)
     }) 
-  } else if (type == "avg") {
+  } else if (type=="avg") {
     comp <- sapply(cols, function(x) {
       mean(abs(unlist(comp_df[, paste0(x, "_truth")] - comp_df[, paste0(x, "_calc")])), na.rm=TRUE)
     }) 
@@ -371,20 +423,20 @@ val_calc_box <- function(comp_df, cols, type="exact", within=1) {
   return(comp)
 }
 
-create_data <- function(season=most_recent_nba_season()) {
+create_in_game_player_stats <- function(season=most_recent_nba_season()) {
   # Calculating play stats
   print("Calculating play stats")
   start1 <- Sys.time()
-  #play_stats <- calc_play_stats(season=season)
-  play_stats <- readRDS("triple-double-predictor/R/play_stats_25.rds")
+  play_stats <- calc_play_stats(season=season)
+  #play_stats <- readRDS("triple-double-predictor/R/play_stats_25.rds")
   end1 <- Sys.time()
   print(paste("Calculating play stats took", round(difftime(end1, start1, units="mins")), "minutes"))
   
   # Identifying lineups
   print("Identifying lineups")
   start2 <- Sys.time()
-  #lineups <- calc_lineups(season=season)
-  lineups <- readRDS("triple-double-predictor/R/lineups_25.rds")
+  lineups <- calc_lineups(season=season)
+  #lineups <- readRDS("triple-double-predictor/R/lineups_25.rds")
   end2 <- Sys.time()
   print(paste("Identifying lineups took", round(difftime(end2, start2, units="mins")), "minutes"))
   
@@ -399,7 +451,7 @@ create_data <- function(season=most_recent_nba_season()) {
   play_stats <- current_box_score(play_stats)
   # Filling in stats on missing plays
   print("Filling in stats for plays each player wasn't involved in")
-  play_stats <- fill_missing_plays(play_stats)
+  play_stats <- fill_missing_plays(play_stats, season=season)
   # Calculating full game box scores
   print("Calculating full game box scores")
   box_calcs <- final_box_score(play_stats)
@@ -422,34 +474,10 @@ create_data <- function(season=most_recent_nba_season()) {
   
   # Adding double-double and triple-double targets
   play_stats <- add_targets(play_stats, box_calcs)
+  
+  # Drop redundant rows
+  play_stats <- play_stats %>%
+    arrange(game_id, game_play_number) %>%
+    distinct(game_id, player_id, start_game_seconds_remaining, .keep_all=TRUE)
   return(play_stats)
 }
-
-# Need to figure out how to fill in gaps when players are out of game so we have their cumulative stats at each play
-# Then, figure out how many plays we really need to save
-woof <- create_data()
-
-
-# need to figure out why double-doubles don't match box score
-
-
-# minutes, field goals made, field goals attempted (do these after the fact), three pointers made, 
-## three pointers attempted, free throws made, free throws attempted, total points (do this after 
-## the fact), total rebounds (do this after the fact), assists, steals, fouls, technical fouls
-
-# there are some name mappings i'll have to clean up. Jimmy Butler vs Jimmy Butler III, Bub Carrington, Alex Sarr, , some 
-# blocked shots are "Player 1 blocks Player 2's shot" instead of "Player 1 blocks Player 2 's shot"
-
-
-woof <- nba_live_boxscore(game_id="0042400401")
-woof2 <- load_nba_schedule()
-woof3 <- nba_playercareerstats()
-woof4 <- load_nba_player_box()
-
-# Strip out statistics from each event
-# Create rolling box score
-# Will like need to join box score with prior season/career stats (create with load_nba_player_box), 
-## venue stats (load_nba_schedule), etc.
-# Will need to make sure features in model are available in live box score (nba_live_boxscore(game_id))
-# Can use load_nba_schedule() to find all game ids for the day
-# Can then use nba_live_boxscore(game_id) to get current box score
