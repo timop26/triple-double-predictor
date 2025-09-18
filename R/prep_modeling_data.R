@@ -20,11 +20,10 @@ for (i in 2025:2022) {
   in_game_player_stats <- read.csv(paste0("triple-double-predictor/data/in_game_player_stats_", i, ".csv"))
   in_game_player_stats <- join_game_and_score(in_game_player_stats, season=i)
   in_game_player_stats <- in_game_player_stats %>%
-    filter(game_play_number %% 4 == 1, tri_dbl == 0)
+    filter(game_play_number %% 8 == 1, tri_dbl == 0, start_game_seconds_remaining >= 30, type_abbreviation == "STD")
   write.csv(
     in_game_player_stats, 
     file=paste0("~/triple-double-predictor/data/modeling_data_", i, ".csv"), 
     row.names=FALSE
   )
 }
-
