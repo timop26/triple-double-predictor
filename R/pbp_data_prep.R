@@ -428,7 +428,6 @@ create_in_game_player_stats <- function(season=most_recent_nba_season()) {
   print("Calculating play stats")
   start1 <- Sys.time()
   play_stats <- calc_play_stats(season=season)
-  #play_stats <- readRDS("triple-double-predictor/R/play_stats_25.rds")
   end1 <- Sys.time()
   print(paste("Calculating play stats took", round(difftime(end1, start1, units="mins")), "minutes"))
   
@@ -436,7 +435,6 @@ create_in_game_player_stats <- function(season=most_recent_nba_season()) {
   print("Identifying lineups")
   start2 <- Sys.time()
   lineups <- calc_lineups(season=season)
-  #lineups <- readRDS("triple-double-predictor/R/lineups_25.rds")
   end2 <- Sys.time()
   print(paste("Identifying lineups took", round(difftime(end2, start2, units="mins")), "minutes"))
   

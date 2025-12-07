@@ -16,11 +16,11 @@ generate_base_data <- function(season) {
 }
 
 create_modeling_data <- function(season) {
-  filepath <- paste0("triple-double-predictor/data/in_game_player_stats_", season, ".csv")
+  filepath <- paste0("~/triple-double-predictor/data/in_game_player_stats_", season, ".csv")
   in_game_player_stats <- read.csv(filepath)
   # Joining game and score features
   in_game_player_stats <- join_game_and_score(in_game_player_stats, season=season)
-  # Keeping every 8th play
+  # Keeping every 6th play
   in_game_player_stats <- in_game_player_stats %>%
     filter(
       game_play_number %% 6 == 1, 
@@ -29,8 +29,8 @@ create_modeling_data <- function(season) {
       type_abbreviation == "STD"
     ) %>%
     mutate(
-      season=i, 
-      prior_season=(i - 1),
+      season=season, 
+      prior_season=(season - 1),
       pts_needed=ifelse(pts >= 10, 0, 10 - pts),
       treb_needed=ifelse(treb >= 10, 0, 10 - treb),
       ast_needed=ifelse(ast >= 10, 0, 10 - ast),
@@ -119,7 +119,8 @@ create_modeling_data <- function(season) {
       spg_prior_season,
       bpg_prior_season,
       tdbl_prior_season,
-      min_prior_season
+      min_prior_season,
+      triple_double
     ) %>%
     arrange(game_id, player_id, game_play_number)
   
@@ -128,22 +129,5 @@ create_modeling_data <- function(season) {
     file=paste0("~/triple-double-predictor/data/modeling_data_", season, ".csv"), 
     row.names=FALSE
   )
-}
-
-
-# Generating training base data
-for (i in 2025:2022) {
-  start <- Sys.time()
-  generate_base_stats(i)
-  end <- Sys.time()
-  print(paste("Took", round(difftime(end, start, units="mins")), "minutes"))
-}
-
-# Adding game and score margin features to training data
-for (i in 2025:2022) {
-  start <- Sys.time()
-  create_modeling_data(i)
-  end <- Sys.time()
-  print(paste("Took", round(difftime(end, start, units="mins")), "minutes"))
 }
 
