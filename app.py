@@ -2,9 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Page title
-st.title("Triple Double Predictor")
-
 player_df = pd.read_csv("data/player_data.csv")
 
 def get_player_prior_season_stats(player_id, season):
@@ -25,10 +22,13 @@ def get_all_names(season):
 def get_prior_season_stats(season):
     return pd.concat([get_player_prior_season_stats(id, season) for id in get_all_names(season)["athlete_id"]])
 
-y25 = get_prior_season_stats(2025)
+prior_season_stats = get_prior_season_stats(2026)
 
-choice = st.selectbox("Player:", y25["full_name"])
-choice_df = y25[y25["full_name"] == choice].iloc[0]
+# Page title
+st.title("Triple Double Predictor")
+
+choice = st.selectbox("Player:", prior_season_stats["full_name"])
+choice_df = prior_season_stats[prior_season_stats["full_name"] == choice].iloc[0]
 
 col1, col2 = st.columns([1, 1])
 with col1:
