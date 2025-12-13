@@ -1,15 +1,43 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from huggingface_hub import hf_hub_download
 from joblib import load
+import os
 
 def stats_needed(x):
     return np.where(x >= 10, 0, 10 - x)
 
-# Load the model from a file
-model = load("model_pipeline_v1.pkl")
+# Configuration
+DATASET_REPO = "timop26/nba-running-box-scores"
+MODEL_REPO = "timop26/triple-double-predictor"
+HF_TOKEN = os.environ.get("HF_TOKEN")
 
-player_df = pd.read_csv("data/player_data.csv")
+@st.cache_resource
+def load_model():
+    """Download and load model from HuggingFace"""
+    model_path = hf_hub_download(
+        repo_id=MODEL_REPO,
+        filename="model_pipeline_v1.pkl",
+        token=HF_TOKEN
+    )
+    return load(model_path)
+
+@st.cache_data
+def load_player_data():
+    """Download and load player data from HuggingFace"""
+    data_path = hf_hub_download(
+        repo_id=DATASET_REPO,
+        filename="player_data.csv",
+        repo_type="dataset",
+        token=HF_TOKEN
+    )
+    return pd.read_csv(data_path)
+
+# Load the model and data (replaces your original two lines)
+model = load_model()
+player_df = load_player_data()
+
 
 def get_player_prior_season_stats(player_id, season):
     info = player_df.loc[
