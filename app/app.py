@@ -139,14 +139,14 @@ with st.form("triple_double_form"):
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        prior_season_ppg = st.number_input("Points/Game", value=choice_df["ppg_prior_season"])
-        prior_season_gp = st.number_input("Games Played", value=choice_df["gp_prior_season"])
+        prior_season_ppg = st.number_input("Points/Game", value=choice_df["ppg_prior_season"], step=0.1)
+        prior_season_gp = st.number_input("Games Played", value=choice_df["gp_prior_season"], step=0.1)
     with c2:
-        prior_season_reb = st.number_input("Rebounds/Game", value=choice_df["rpg_prior_season"])
-        prior_season_min = st.number_input("Minutes/Game", value=choice_df["min_prior_season"])
+        prior_season_reb = st.number_input("Rebounds/Game", value=choice_df["rpg_prior_season"], step=0.1)
+        prior_season_min = st.number_input("Minutes/Game", value=choice_df["min_prior_season"], step=0.1)
     with c3:
-        prior_season_ast = st.number_input("Assists/Game", value=choice_df["apg_prior_season"])
-        prior_season_tdbl = st.number_input("Triple Doubles", value=choice_df["tdbl_prior_season"])
+        prior_season_ast = st.number_input("Assists/Game", value=choice_df["apg_prior_season"], step=0.1)
+        prior_season_tdbl = st.number_input("Triple Doubles", value=choice_df["tdbl_prior_season"], step=0.1)
 
     st.markdown(
         "<h1 style='text-align: center; font-size: 25px; font-weight: bold;'>Game Status</h1>",
