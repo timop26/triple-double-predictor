@@ -4,6 +4,10 @@ on:
   push:
     branches: 
       - main
+    paths:
+    - 'app/app.py'
+    - 'requirements.txt'
+    - '.streamlit/**'  
   workflow_dispatch:
 
 jobs:
