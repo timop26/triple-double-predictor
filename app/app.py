@@ -160,10 +160,10 @@ with st.form("triple_double_form"):
         ast = st.number_input("Assists", value=0)
         blk = st.number_input("Blocks", value=0)
     with c2:
-        min_remaining = st.number_input("Min Remaining", value=48)
+        min_remaining = st.number_input("Min Remaining", value=48, max_value=48)
         score_margin = st.number_input("Score Margin", value=0)
         fouls = st.number_input("Fouls", value=0)
-        minutes_played = st.number_input("Minutes Played", value=0)
+        minutes_played = st.number_input("Minutes Played", value=0, max_value=88)
     with c3:
         stl = st.number_input("Steals", value=0)
         month = st.number_input("Month of the Year", value=1)
