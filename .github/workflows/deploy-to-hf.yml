@@ -8,6 +8,7 @@ on:
       - 'app/app.py'
       - 'requirements.txt'
       - '.streamlit/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
