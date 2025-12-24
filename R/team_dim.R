@@ -14,4 +14,4 @@ team_df <- load_nba_team_box(season=2022:most_recent_nba_season()) %>%
   )
 
 # Writing team-season level data to csv
-write.csv(team_df, "data/team_data.csv", row.names=FALSE)
+write.csv(team_df, "~/triple-double-predictor/data/team_data.csv", row.names=FALSE)

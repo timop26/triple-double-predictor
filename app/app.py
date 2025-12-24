@@ -5,9 +5,7 @@ from huggingface_hub import hf_hub_download
 from joblib import load
 import os
 
-# -----------------------------
 # Utilities
-# -----------------------------
 def stats_needed(x):
     return np.where(x >= 10, 0, 10 - x)
 
@@ -15,14 +13,12 @@ DATASET_REPO = "timop26/nba-running-box-scores"
 MODEL_REPO = "timop26/triple-double-predictor"
 HF_TOKEN = os.environ.get("HF_TOKEN")
 
-# -----------------------------
-# Cached resources (load once)
-# -----------------------------
+# Cached resources
 @st.cache_resource
 def load_model():
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
-        filename="model_pipeline_v1.pkl",
+        filename="../models/model_pipeline_v1.pkl",
         token=HF_TOKEN
     )
     return load(model_path)
@@ -31,7 +27,7 @@ def load_model():
 def load_player_data():
     data_path = hf_hub_download(
         repo_id=DATASET_REPO,
-        filename="player_data.csv",
+        filename="../data/player_data.csv",
         repo_type="dataset",
         token=HF_TOKEN
     )
@@ -54,22 +50,16 @@ def get_prior_season_stats(player_df, season):
     ids = player_df.loc[player_df["season"] == season, "athlete_id"]
     return pd.concat([_single(i) for i in ids], ignore_index=True)
 
-# -----------------------------
-# Load once (cheap on rerun)
-# -----------------------------
+# Load model and player data
 model = load_model()
 player_df = load_player_data()
 prior_season_stats = get_prior_season_stats(player_df, 2026)
 
-# -----------------------------
-# Session state (results)
-# -----------------------------
+# Session state
 if "prob_percent" not in st.session_state:
     st.session_state.prob_percent = None
 
-# -----------------------------
-# Styles (unchanged)
-# -----------------------------
+# Custom css
 st.markdown(
     """
     <style>
@@ -105,9 +95,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# -----------------------------
 # Title
-# -----------------------------
 st.markdown(
     """
     <h1 style='text-align: center; font-size: 50px; font-weight: bold;'>
@@ -117,9 +105,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# -----------------------------
 # Player selection
-# -----------------------------
 col1, col2 = st.columns([2, 1], vertical_alignment="center")
 
 with col1:
@@ -143,9 +129,7 @@ with col1:
 with col2:
     st.image(choice_df["headshot_href"], use_container_width=True)
 
-# -----------------------------
-# Form
-# -----------------------------
+# Form submit
 with st.form("triple_double_form"):
 
     st.markdown(
@@ -191,9 +175,7 @@ with st.form("triple_double_form"):
     with center:
         submitted = st.form_submit_button("Calculate Triple Double Probability")
 
-# -----------------------------
-# Calculation (only on submit)
-# -----------------------------
+# Create inference data
 if submitted:
     data = {
         "home_away": home_away,
@@ -222,9 +204,7 @@ if submitted:
     prob = model.predict_proba(input_df)[:, 1][0]
     st.session_state.prob_percent = round(prob * 100, 1)
 
-# -----------------------------
-# Result (persistent)
-# -----------------------------
+# Result
 if st.session_state.prob_percent is not None:
     st.markdown(
         f"""
