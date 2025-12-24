@@ -139,14 +139,14 @@ with st.form("triple_double_form"):
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        prior_season_ppg = st.number_input("Points/Game", value=choice_df["ppg_prior_season"], step=0.1)
-        prior_season_gp = st.number_input("Games Played", value=choice_df["gp_prior_season"], step=0.1)
+        prior_season_ppg = st.number_input("Points/Game", value=float(choice_df["ppg_prior_season"]), min_value=0.0, step=0.1)
+        prior_season_gp = st.number_input("Games Played", value=float(choice_df["gp_prior_season"]), min_value=0.0, step=0.1)
     with c2:
-        prior_season_reb = st.number_input("Rebounds/Game", value=choice_df["rpg_prior_season"], step=0.1)
-        prior_season_min = st.number_input("Minutes/Game", value=choice_df["min_prior_season"], step=0.1)
+        prior_season_reb = st.number_input("Rebounds/Game", value=float(choice_df["rpg_prior_season"]), min_value=0.0, step=0.1)
+        prior_season_min = st.number_input("Minutes/Game", value=float(choice_df["min_prior_season"]), min_value=0.0, step=0.1)
     with c3:
-        prior_season_ast = st.number_input("Assists/Game", value=choice_df["apg_prior_season"], step=0.1)
-        prior_season_tdbl = st.number_input("Triple Doubles", value=choice_df["tdbl_prior_season"], step=0.1)
+        prior_season_ast = st.number_input("Assists/Game", value=float(choice_df["apg_prior_season"]), min_value=0.0, step=0.1)
+        prior_season_tdbl = st.number_input("Triple Doubles", value=float(choice_df["tdbl_prior_season"]), min_value=0.0, step=0.1)
 
     st.markdown(
         "<h1 style='text-align: center; font-size: 25px; font-weight: bold;'>Game Status</h1>",
@@ -155,15 +155,15 @@ with st.form("triple_double_form"):
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        pts = st.number_input("Points", value=0)
-        reb = st.number_input("Rebounds", value=0)
-        ast = st.number_input("Assists", value=0)
-        blk = st.number_input("Blocks", value=0)
+        pts = st.number_input("Points", min_value=0, value=0)
+        reb = st.number_input("Rebounds", min_value=0, value=0)
+        ast = st.number_input("Assists", min_value=0, value=0)
+        blk = st.number_input("Blocks", min_value=0, value=0)
     with c2:
-        min_remaining = st.number_input("Min Remaining", value=48, max_value=48)
-        score_margin = st.number_input("Score Margin", value=0)
-        fouls = st.number_input("Fouls", value=0)
-        minutes_played = st.number_input("Minutes Played", value=0, max_value=88)
+        min_remaining = st.number_input("Min Remaining", value=48, min_value=0, max_value=48)
+        score_margin = st.number_input("Score Margin", value=0, min_value=-100, max_value=100)
+        fouls = st.number_input("Fouls", min_value=0, value=0)
+        minutes_played = st.number_input("Minutes Played", min_value=0, value=0, max_value=88)
     with c3:
         stl = st.number_input("Steals", value=0)
         month = st.number_input("Month of the Year", value=1)
