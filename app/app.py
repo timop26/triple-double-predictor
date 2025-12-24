@@ -18,7 +18,7 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 def load_model():
     model_path = hf_hub_download(
         repo_id=MODEL_REPO,
-        filename="../models/model_pipeline_v1.pkl",
+        filename="model_pipeline_v1.pkl",
         token=HF_TOKEN
     )
     return load(model_path)
@@ -27,7 +27,7 @@ def load_model():
 def load_player_data():
     data_path = hf_hub_download(
         repo_id=DATASET_REPO,
-        filename="../data/player_data.csv",
+        filename="player_data.csv",
         repo_type="dataset",
         token=HF_TOKEN
     )
