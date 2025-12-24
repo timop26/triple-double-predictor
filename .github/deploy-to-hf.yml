@@ -1,0 +1,87 @@
+name: Deploy to HuggingFace Space
+
+on:
+  push:
+    branches: [main]  # Change to 'master' if that's your default branch
+    paths:
+      - 'app/app.py'
+      - 'requirements.txt'
+      - '.streamlit/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Git
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      
+      - name: Clone HuggingFace Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git clone https://timop26:$HF_TOKEN@huggingface.co/spaces/timop26/triple-double-predictor hf-space
+      
+      - name: Copy files to HuggingFace Space
+        run: |
+          # Copy app
+          cp app/app.py hf-space/app.py
+          
+          # Copy requirements
+          cp requirements.txt hf-space/requirements.txt
+      
+      - name: Create/Update Dockerfile
+        run: |
+          cat > hf-space/Dockerfile << 'EOF'
+          FROM python:3.11-slim
+
+          WORKDIR /app
+
+          COPY requirements.txt .
+          RUN pip install --no-cache-dir -r requirements.txt
+
+          COPY app.py .
+
+          EXPOSE 7860
+
+          CMD ["streamlit", "run", "app.py", \
+               "--server.port=7860", \
+               "--server.address=0.0.0.0", \
+               "--server.headless=true", \
+               "--theme.primaryColor=#17408B", \
+               "--theme.backgroundColor=#F5F5F5", \
+               "--theme.secondaryBackgroundColor=#17408b0b", \
+               "--theme.textColor=#17408B", \
+               "--theme.font=sans serif"]
+          EOF
+      
+      - name: Create/Update README
+        run: |
+          cat > hf-space/README.md << 'EOF'
+          ---
+          title: Triple Double Predictor
+          emoji: 🏀
+          colorFrom: indigo
+          colorTo: red
+          sdk: docker
+          pinned: false
+          license: mit
+          short_description: Predict NBA triple-double probability
+          ---
+
+          # Triple Double Predictor
+
+          Predicts the probability of an NBA player achieving a triple-double.
+          EOF
+      
+      - name: Commit and push to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd hf-space
+          git add .
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-deploy from GitHub" && git push)
