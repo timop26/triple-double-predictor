@@ -2,7 +2,8 @@ name: Deploy to HuggingFace Space
 
 on:
   push:
-    branches: [main]  # Change to 'master' if that's your default branch
+    branches: 
+      -main
     paths:
       - 'app/app.py'
       - 'requirements.txt'
